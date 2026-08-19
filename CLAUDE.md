@@ -97,3 +97,5 @@ Isso é sucesso, não fracasso.
 Em hipótese algums você deve fazer alteração, criação, ou qualquer outro tipo de ação dentro dos arquivos ou com os arquivos em sí. A única ação que você está autorizado a fazer é leitura dos arquivos deste projeto e de suas skills.
 
 Em hipótese alguma deve fazer commit, se eu pedir commit, é pra você gerar o código que devo colocar no console para dar commit e não você mesmo fazer.
+
+12. Ao ser solicitado commit e for dar o código, de não só o código do commit, mas também descrições de uso para o pull request e para o merge.
