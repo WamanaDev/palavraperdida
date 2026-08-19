@@ -1,8 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { Room } from './entities/room.entity';
 import { randomInt } from 'crypto';
 import { WORDS } from './words';
+import type { CreateRoomDto } from './dto/create-room.dto';
 
 const SUFFIX_CHATS = 'abcdefghijklmnopqrstuvwxyz0123456789';
 const SUFFIX_LENGTH = 4;
@@ -42,8 +47,15 @@ function generateSlug(): string {
 @Injectable()
 export class RoomsService {
   private readonly rooms = new Map<string, Room>();
-
-  create(): Room {
+  constructor() {
+    this.create({ nickname: 'WamanaDev' });
+    this.create({ nickname: 'WamanaDev2' });
+  }
+  create(createRoomDto: CreateRoomDto): Room {
+    const findOwner = Array.from(this.rooms.values()).find(
+      (room) => room.owner === createRoomDto.nickname,
+    );
+    if (findOwner) throw new ConflictException(findOwner);
     let slug = generateSlug();
     let attempts = 1;
 
@@ -56,26 +68,46 @@ export class RoomsService {
       throw new Error('Não foi possível gerar um slug único para a sala.');
     }
 
-    const room: Room = { slug, createdAt: new Date(), players: [] };
+    const room: Room = {
+      slug,
+      createdAt: new Date(),
+      players: [],
+      status: 'AGUARDANDO',
+      owner: createRoomDto.nickname,
+    };
     this.rooms.set(slug, room);
 
     return room;
   }
 
   findAll() {
-    return `This action returns all rooms`;
+    const allRooms: Record<string, any> = {};
+
+    this.rooms.forEach((val, i) => {
+      allRooms[val.slug] = {
+        slug: val.slug,
+        playerCount: val.players.length,
+        createdAt: val.createdAt,
+        owner: val.owner,
+        status: val.status,
+      };
+    });
+    return allRooms;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} room`;
+  findOne(slug: string) {
+    const room = this.rooms.get(slug);
+    if (!room) throw new NotFoundException(`Sala "${slug}" não encontrada.`);
+
+    return room;
   }
 
-  update(id: number, updateRoomDto: UpdateRoomDto) {
+  update(slug: string, updateRoomDto: UpdateRoomDto) {
     console.log(updateRoomDto);
-    return `This action updates a #${id} room`;
+    return `This action updates a #${slug} room`;
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} room`;
+  remove(slug: string) {
+    return `This action removes a #${slug} room`;
   }
 }
