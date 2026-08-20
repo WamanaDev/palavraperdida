@@ -83,7 +83,7 @@ export class RoomsService {
   findAll() {
     const allRooms: Record<string, any> = {};
 
-    this.rooms.forEach((val, i) => {
+    this.rooms.forEach((val) => {
       allRooms[val.slug] = {
         slug: val.slug,
         playerCount: val.players.length,
