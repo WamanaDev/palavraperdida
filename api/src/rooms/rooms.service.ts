@@ -1,13 +1,14 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateRoomDto } from './dto/update-room.dto';
-import { Room } from './entities/room.entity';
+import { Room, type Team } from './entities/room.entity';
 import { randomInt } from 'crypto';
 import { WORDS } from './words';
 import type { CreateRoomDto } from './dto/create-room.dto';
+
+type WordAssignment = Record<Team, string[]> & {
+  white: string[];
+  black: string[];
+};
 
 const SUFFIX_CHATS = 'abcdefghijklmnopqrstuvwxyz0123456789';
 const SUFFIX_LENGTH = 4;
@@ -44,6 +45,57 @@ function generateSlug(): string {
   return `${normalizeForSlug(first)}-${normalizeForSlug(second)}-${randomSuffix()}`;
 }
 
+export function sorterWords(words: string[]): string[] {
+  const selectWords: string[] = [];
+  for (; selectWords.length < 25;) {
+    const randomWord = Math.floor(Math.random() * words.length);
+    const existsWords = selectWords.includes(words[randomWord]);
+    if (!existsWords) {
+      selectWords.push(words[randomWord]);
+    }
+  }
+  return selectWords;
+}
+
+export function shuffle<T>(items: T[]): T[] {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  return shuffled;
+}
+
+export function sorterTeamWords(
+  words: string[],
+  teamStart: Team,
+): WordAssignment {
+  const teamSecond: Team = teamStart === 'BURRO' ? 'JUMENTO' : 'BURRO';
+
+  const labels: (Team | 'white' | 'black')[] = [
+    ...Array<Team>(9).fill(teamStart),
+    ...Array<Team>(8).fill(teamSecond),
+    ...Array<'white'>(7).fill('white'),
+    ...Array<'black'>(1).fill('black'),
+  ];
+
+  const shuffledLabels = shuffle(labels);
+
+  const teamWords: WordAssignment = {
+    BURRO: [],
+    JUMENTO: [],
+    white: [],
+    black: [],
+  };
+
+  words.forEach((word, index) => {
+    teamWords[shuffledLabels[index]].push(word);
+  });
+
+  return teamWords;
+}
+
 @Injectable()
 export class RoomsService {
   private readonly rooms = new Map<string, Room>();
@@ -55,7 +107,7 @@ export class RoomsService {
     const findOwner = Array.from(this.rooms.values()).find(
       (room) => room.owner === createRoomDto.nickname,
     );
-    if (findOwner) throw new ConflictException(findOwner);
+    if (findOwner) return findOwner;
     let slug = generateSlug();
     let attempts = 1;
 
@@ -100,6 +152,16 @@ export class RoomsService {
     if (!room) throw new NotFoundException(`Sala "${slug}" não encontrada.`);
 
     return room;
+  }
+
+  startGame(slug: string, words?: string[]) {
+    const room = this.findOne(slug);
+    if (!words?.length) words = WORDS;
+    const sorter = sorterWords(words);
+    const team = sorterTeamWords(sorter, 'BURRO');
+    room.words = team;
+    room.status = 'EM_JOGO';
+    return sorter;
   }
 
   update(slug: string, updateRoomDto: UpdateRoomDto) {

@@ -20,6 +20,11 @@ export class RoomsController {
     return this.roomsService.create(createRoomDto);
   }
 
+  @Post('/start/:slug')
+  startGame(@Param('slug') slug: string, @Body() words?: string[]) {
+    return this.roomsService.startGame(slug, words);
+  }
+
   @Get()
   findAll() {
     return this.roomsService.findAll();
