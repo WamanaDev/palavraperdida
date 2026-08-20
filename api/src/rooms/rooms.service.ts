@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  type OnModuleDestroy,
+} from '@nestjs/common';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { Room, type Team } from './entities/room.entity';
 import { randomInt } from 'crypto';
@@ -13,6 +17,9 @@ type WordAssignment = Record<Team, string[]> & {
 const SUFFIX_CHATS = 'abcdefghijklmnopqrstuvwxyz0123456789';
 const SUFFIX_LENGTH = 4;
 const MAX_SLUG_ATTEMPTS = 10;
+const ROOM_TTL_MINUTES = Number(process.env.ROOM_TTL_MINUTES) || 30;
+const ROOM_TTL_MS = ROOM_TTL_MINUTES * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 60 * 1000;
 
 function normalizeForSlug(word: string): string {
   return word
@@ -97,17 +104,43 @@ export function sorterTeamWords(
 }
 
 @Injectable()
-export class RoomsService {
+export class RoomsService implements OnModuleDestroy {
   private readonly rooms = new Map<string, Room>();
+  private readonly cleanupInterval: NodeJS.Timeout;
   constructor() {
     this.create({ nickname: 'WamanaDev' });
     this.create({ nickname: 'WamanaDev2' });
+    this.cleanupInterval = setInterval(
+      () => this.removeExpiredRooms(),
+      CLEANUP_INTERVAL_MS,
+    ).unref();
+  }
+
+  onModuleDestroy() {
+    clearInterval(this.cleanupInterval);
+  }
+
+  private isExpired(room: Room): boolean {
+    return Date.now() - room.lastActivityAt.getTime() > ROOM_TTL_MS;
+  }
+
+  private touch(room: Room): void {
+    room.lastActivityAt = new Date();
+  }
+
+  private removeExpiredRooms(): void {
+    for (const [slug, room] of this.rooms) {
+      if (this.isExpired(room)) this.rooms.delete(slug);
+    }
   }
   create(createRoomDto: CreateRoomDto): Room {
     const findOwner = Array.from(this.rooms.values()).find(
       (room) => room.owner === createRoomDto.nickname,
     );
-    if (findOwner) return findOwner;
+    if (findOwner) {
+      this.touch(findOwner);
+      return findOwner;
+    }
     let slug = generateSlug();
     let attempts = 1;
 
@@ -126,6 +159,7 @@ export class RoomsService {
       players: [],
       status: 'AGUARDANDO',
       owner: createRoomDto.nickname,
+      lastActivityAt: new Date(),
     };
     this.rooms.set(slug, room);
 
@@ -149,7 +183,10 @@ export class RoomsService {
 
   findOne(slug: string) {
     const room = this.rooms.get(slug);
-    if (!room) throw new NotFoundException(`Sala "${slug}" não encontrada.`);
+    if (!room || this.isExpired(room)) {
+      this.rooms.delete(slug);
+      throw new NotFoundException(`Sala "${slug}" não encontrada.`);
+    }
 
     return room;
   }
@@ -161,6 +198,7 @@ export class RoomsService {
     const team = sorterTeamWords(sorter, 'BURRO');
     room.words = team;
     room.status = 'EM_JOGO';
+    this.touch(room);
     return sorter;
   }
 
