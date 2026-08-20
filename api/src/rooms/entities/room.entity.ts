@@ -16,4 +16,5 @@ export interface Room {
   players: Player[];
   status: Status;
   owner: string;
+  words?: Record<Team, string[]>;
 }
