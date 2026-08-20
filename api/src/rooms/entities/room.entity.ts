@@ -13,6 +13,7 @@ export interface Player {
 export interface Room {
   slug: string;
   createdAt: Date;
+  lastActivityAt: Date;
   players: Player[];
   status: Status;
   owner: string;
